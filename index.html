@@ -366,10 +366,9 @@
         function switchTool(tool) {
             if (currentTool === tool) return;
 
-            // Stop any running operations before switching
-            if (currentTool === 'timer' && isRunning) stopTimer();
-            if (currentTool === 'stopwatch' && isStopwatchRunning) stopStopwatch();
-
+            // We removed the code here that stopped the timer/stopwatch when switching tools.
+            // They now run continuously in the background!
+            
             currentTool = tool;
 
             // Update navigation button active state
