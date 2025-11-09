@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Dashboard</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600&display=swap" rel="stylesheet">
+    <style>
+        /* General dark theme and Inter font */
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #000000;
+        }
+        
+        /* Utility class to hide elements completely */
+        .cinematic-hidden {
+            display: none !important;
+        }
+
+        /* Ensure the main container fills the viewport height, adjusted dynamically by JS */
+        #app-container { min-height: calc(100vh - 3.5rem); }
+
+        /* General panel styling: Full screen layout, centered content */
+        .panel {
+            min-height: 100vh;
+            width: 100vw;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 2rem 4rem 2rem; 
+            background-color: #0a0a0a;
+            justify-content: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Active panel state */
+        .panel.active {
+            display: flex;
+        }
+
+        /* Specific styling for the large display numbers (lighter font weight) */
+        .large-display {
+            font-size: 7rem; 
+            line-height: 1;
+            font-weight: 200;
+        }
+
+        /* Adjust font size for tablet/desktop to ensure no leaking and sleekness */
+        @media (min-width: 768px) {
+            .large-display {
+                font-size: 10rem;
+            }
+        }
+
+        /* Custom style for all primary buttons (Dark Gray Background, NO rounding) */
+        .action-button {
+            background-color: #1f2937;
+            color: white; 
+            transition: all 150ms;
+            border: 1px solid #1f2937;
+        }
+
+        /* --- CINEMATIC TOGGLE STYLES (STATIC/SUBTLE) --- */
+        #cinematic-toggle {
+            background-color: transparent;
+            color: white; 
+            border: none;
+            box-shadow: none;
+            transition: none;
+            padding: 0.75rem; 
+            line-height: 0;
+        }
+        
+        #cinematic-toggle:hover, 
+        #cinematic-toggle.cinematic-active {
+            background-color: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        /* Cinematic Counter Circle Button Styling */
+        .cinematic-circle-button {
+            width: 100%;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #1f2937;
+            border: 2px solid #1f2937;
+            transition: all 150ms;
+            border-radius: 9999px;
+        }
+        
+        /* Fixed Nav Bar Styling (Small, centered, and highly subtle) */
+        #navbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3.5rem;
+            background-color: #000; /* Keeps it pitch black */
+            display: flex;
+            justify-content: center; /* Center the icons horizontally */
+            align-items: center;
+            padding: 0 1rem;
+            transition: opacity 0.3s ease;
+        }
+
+        .nav-button {
+            flex: 1;
+            max-width: 100px;
+            height: 2.5rem;
+            font-size: 1.5rem; /* Larger icon size */
+            background-color: transparent; /* Subtle */
+            border: none; /* Subtle */
+            border-radius: 0.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #6b7280; /* Default subtle gray icon color */
+            transition: all 150ms;
+        }
+        
+        /* Nav button active state: subtle green icon, no background/shadow */
+        .nav-button.active-tool {
+            box-shadow: none;
+            background-color: transparent;
+            color: #4ade80; /* Bright green for active icon */
+        }
+        
+        /* Nav button hover state: subtle background change and white icon */
+        .nav-button:hover:not(.active-tool) {
+            background-color: #1f2937;
+            color: white;
+        }
+
+
+        /* Hover/Active Styles for Utility Buttons (Glow effects remain) */
+        /* Start/Add Glow - Green */
+        #start-button:hover:not(:disabled), .counter-plus:hover, 
+        .cinematic-circle-button.counter-plus:hover, 
+        #stopwatch-start-button:hover:not(:disabled) { 
+            box-shadow: 0 0 8px rgba(74, 222, 128, 0.4); 
+            border-color: #4ade80; 
+        }
+        /* Stop Glow - Yellow */
+        #stop-button:hover:not(:disabled), 
+        #stopwatch-stop-button:hover:not(:disabled) { 
+            box-shadow: 0 0 8px rgba(253, 224, 71, 0.4); 
+            border-color: #fde047;
+        }
+        
+        /* Reset/Minus Glow - Red */
+        #reset-timer-button:hover, .counter-control:hover, .counter-minus:hover, 
+        .cinematic-circle-button.counter-minus:hover, 
+        #stopwatch-reset-button:hover { 
+             box-shadow: 0 0 8px rgba(248, 113, 113, 0.4); 
+             border-color: #f87171;
+        }
+        /* Reset initial shadows on cinematic buttons */
+        .cinematic-circle-button.counter-plus, .cinematic-circle-button.counter-minus {
+            box-shadow: none; 
+        }
+
+        /* Timer Input specific style */
+        #custom-time-input {
+            text-align: center;
+        }
+        
+    </style>
+</head>
+<body class="bg-black text-white antialiased">
+
+    <!-- FIXED TOP-LEFT CINEMATIC TOGGLE -->
+    <button id="cinematic-toggle" onclick="toggleCinematicMode()" class="fixed top-4 left-4 p-3 text-xl z-50">
+        <!-- Simple Monitor Icon -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="15" x="2" y="3" rx="2"/><path d="M7 21h10"/><path d="M12 18v3"/></svg>
+    </button>
+
+    <!-- App Container: Hosts the toggleable panels -->
+    <div id="app-container">
+
+        <!-- 1. COUNTER PANEL -->
+        <div id="counter-panel" class="panel active">
+            <!-- Main Counter Number -->
+            <div id="counter-display" class="large-display tabular-nums text-white transition-colors duration-300">0</div>
+            
+            <!-- Standard Counter Controls -->
+            <div id="standard-counter-controls" class="flex space-x-6 w-full max-w-sm px-4 counter-controls mt-16">
+                <button onclick="changeCount(-1)" class="w-1/3 p-4 text-3xl action-button transform hover:scale-[1.03] active:scale-95 counter-minus">-</button>
+                <button onclick="resetCount()" class="w-1/3 p-4 text-xl font-medium action-button transform hover:scale-[1.03] active:scale-95 counter-control">Reset</button>
+                <button onclick="changeCount(1)" class="w-1/3 p-4 text-3xl action-button transform hover:scale-[1.03] active:scale-95 counter-plus">+</button>
+            </div>
+            
+            <!-- Cinematic Counter Controls (Circle Buttons) -->
+            <div id="cinematic-counter-controls" class="hidden flex flex-col space-y-8 w-full max-w-xs px-4 cinematic-controls mt-16">
+                <button onclick="changeCount(1)" class="cinematic-circle-button counter-plus transform hover:scale-[1.03] active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+                <button onclick="changeCount(-1)" class="cinematic-circle-button counter-minus transform hover:scale-[1.03] active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. TIMER PANEL -->
+        <div id="timer-panel" class="panel">
+            
+            <!-- Timer Display -->
+            <div id="timer-display" class="large-display tabular-nums text-white transition-colors duration-500">00:00:00</div>
+
+            <!-- Standard Timer Controls (Bottom Section) -->
+            <div id="standard-timer-controls" class="w-full max-w-sm mt-16 space-y-4 px-4 pb-0">
+                <!-- Custom Time Input: Enter key updates time -->
+                <div class="flex">
+                    <input type="number" id="custom-time-input" onkeydown="handleTimeInput(event)" placeholder="Enter time in minutes" min="1" class="w-full p-3 bg-gray-800 text-white focus:ring-1 focus:ring-gray-600 focus:outline-none border border-gray-800">
+                </div>
+
+                <!-- Main Action Buttons -->
+                <div class="flex space-x-3">
+                    <button id="start-button" onclick="startTimer()" class="flex-1 p-4 text-xl font-semibold action-button active:scale-95">Start</button>
+                    <button id="stop-button" onclick="stopTimer()" disabled class="flex-1 p-4 text-xl font-semibold action-button opacity-50 cursor-not-allowed">Stop</button>
+                    <button id="reset-timer-button" onclick="resetTimer()" class="p-4 text-xl font-semibold action-button active:scale-95">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. STOPWATCH PANEL -->
+        <div id="stopwatch-panel" class="panel">
+            
+            <!-- Stopwatch Display -->
+            <div id="stopwatch-display" class="large-display tabular-nums text-white transition-colors duration-500">00:00:00</div>
+
+            <!-- Stopwatch Controls -->
+            <div id="stopwatch-controls" class="w-full max-w-sm mt-16 space-y-4 px-4 pb-0">
+                <!-- Main Action Buttons -->
+                <div class="flex space-x-3">
+                    <button id="stopwatch-start-button" onclick="startStopwatch()" class="flex-1 p-4 text-xl font-semibold action-button active:scale-95">Start</button>
+                    <button id="stopwatch-stop-button" onclick="stopStopwatch()" disabled class="flex-1 p-4 text-xl font-semibold action-button opacity-50 cursor-not-allowed">Stop</button>
+                    <button id="stopwatch-reset-button" onclick="resetStopwatch()" class="p-4 text-xl font-semibold action-button active:scale-95">Reset</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- FIXED BOTTOM NAVIGATION BAR (Small, subtle icons) -->
+    <div id="navbar">
+        <div class="flex space-x-4 w-full max-w-xs"> <!-- Reduced max-width to cluster icons -->
+            <button id="nav-counter" onclick="switchTool('counter')" class="nav-button active-tool">
+                <!-- 123 Icon (Counting) -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 0 1-8-8 8 8 0 0 1 8-8 8 8 0 0 1 8 8 8 8 0 0 1-8 8"/><path d="M12 10V8"/><path d="M12 16v-2"/><path d="M10 12h4"/></svg>
+            </button>
+            <button id="nav-timer" onclick="switchTool('timer')" class="nav-button">
+                <!-- Timer Icon (Clock/Hourglass) -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v1H5V2z"/><path d="M5 4v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4H5z"/><path d="M8 9.5l3 3 4-4"/></svg>
+            </button>
+            <button id="nav-stopwatch" onclick="switchTool('stopwatch')" class="nav-button">
+                <!-- Stopwatch Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/><path d="M18.36 5.64l-1.42 1.42"/></svg>
+            </button>
+        </div>
+    </div>
+
+
+    <script>
+        // --- GLOBAL STATE ---
+        let currentTool = 'counter';
+        let isCinematicMode = false;
+        
+        // --- TIMER STATE ---
+        let totalSeconds = 0;
+        let isRunning = false;
+        let intervalId = null;
+
+        // --- STOPWATCH STATE ---
+        let stopwatchSeconds = 0;
+        let isStopwatchRunning = false;
+        let stopwatchIntervalId = null;
+        
+        // --- DOM REFERENCES ---
+        const appContainer = document.getElementById('app-container');
+        const navbar = document.getElementById('navbar');
+        const counterPanel = document.getElementById('counter-panel');
+        const timerPanel = document.getElementById('timer-panel');
+        const stopwatchPanel = document.getElementById('stopwatch-panel');
+        const standardCounterControls = document.getElementById('standard-counter-controls');
+        const cinematicCounterControls = document.getElementById('cinematic-counter-controls');
+        const standardTimerControls = document.getElementById('standard-timer-controls');
+        const stopwatchControls = document.getElementById('stopwatch-controls');
+
+        const navCounter = document.getElementById('nav-counter');
+        const navTimer = document.getElementById('nav-timer');
+        const navStopwatch = document.getElementById('nav-stopwatch');
+        
+        // Timer Refs
+        const timerDisplay = document.getElementById('timer-display');
+        const startButton = document.getElementById('start-button');
+        const stopButton = document.getElementById('stop-button');
+
+        // Stopwatch Refs
+        const stopwatchDisplay = document.getElementById('stopwatch-display');
+        const stopwatchStartButton = document.getElementById('stopwatch-start-button');
+        const stopwatchStopButton = document.getElementById('stopwatch-stop-button');
+
+
+        // --- VIEW MANAGEMENT ---
+
+        function updateView() {
+            // 1. Manage Navigation Bar and App Container Height
+            if (isCinematicMode) {
+                navbar.classList.add('cinematic-hidden');
+                appContainer.style.minHeight = '100vh';
+                appContainer.style.paddingBottom = '0';
+            } else {
+                navbar.classList.remove('cinematic-hidden');
+                // Height adjustment uses 3.5rem (navbar height)
+                appContainer.style.minHeight = 'calc(100vh - 3.5rem)';
+                appContainer.style.paddingBottom = '3.5rem'; 
+            }
+
+            // 2. Hide all panels and controls initially
+            counterPanel.classList.remove('active');
+            timerPanel.classList.remove('active');
+            stopwatchPanel.classList.remove('active');
+
+            standardCounterControls.classList.add('cinematic-hidden');
+            cinematicCounterControls.classList.add('hidden');
+            standardTimerControls.classList.add('cinematic-hidden');
+            stopwatchControls.classList.add('cinematic-hidden');
+
+
+            // 3. Activate the current tool and show necessary controls
+            if (currentTool === 'counter') {
+                counterPanel.classList.add('active');
+                if (isCinematicMode) {
+                    cinematicCounterControls.classList.remove('hidden');
+                } else {
+                    standardCounterControls.classList.remove('cinematic-hidden');
+                }
+            } else if (currentTool === 'timer') {
+                timerPanel.classList.add('active');
+                if (!isCinematicMode) {
+                    standardTimerControls.classList.remove('cinematic-hidden');
+                }
+            } else if (currentTool === 'stopwatch') { 
+                stopwatchPanel.classList.add('active');
+                if (!isCinematicMode) {
+                    stopwatchControls.classList.remove('cinematic-hidden');
+                }
+            }
+        }
+
+        function toggleCinematicMode() {
+            isCinematicMode = !isCinematicMode;
+            updateView();
+        }
+
+        function switchTool(tool) {
+            if (currentTool === tool) return;
+
+            // Stop any running operations before switching
+            if (currentTool === 'timer' && isRunning) stopTimer();
+            if (currentTool === 'stopwatch' && isStopwatchRunning) stopStopwatch();
+
+            currentTool = tool;
+
+            // Update navigation button active state
+            navCounter.classList.remove('active-tool');
+            navTimer.classList.remove('active-tool');
+            navStopwatch.classList.remove('active-tool');
+            
+            if (tool === 'counter') {
+                navCounter.classList.add('active-tool');
+            } else if (tool === 'timer') {
+                navTimer.classList.add('active-tool');
+            } else if (tool === 'stopwatch') {
+                navStopwatch.classList.add('active-tool');
+            }
+
+            // Update the panel visibility and control setup
+            updateView();
+        }
+
+        // --- UTILITIES ---
+        
+        function formatTime(seconds) {
+            if (seconds < 0) seconds = 0;
+            const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+            const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+
+
+        // --- COUNTER LOGIC ---
+        let currentCount = 0;
+        const counterDisplay = document.getElementById('counter-display');
+
+        function updateCounterDisplay() {
+            counterDisplay.textContent = currentCount;
+            // Use red only for negative numbers for minimal distraction
+            if (currentCount < 0) {
+                counterDisplay.classList.add('text-red-400');
+            } else {
+                counterDisplay.classList.remove('text-red-400');
+            }
+        }
+
+        function changeCount(delta) {
+            currentCount += delta;
+            updateCounterDisplay();
+        }
+
+        function resetCount() {
+            currentCount = 0;
+            updateCounterDisplay();
+        }
+
+        // --- TIMER LOGIC (Countdown) ---
+        function toggleTimerButtons(running) {
+            startButton.disabled = running;
+            stopButton.disabled = !running;
+
+            // Handle opacity for disabled state
+            if (running) {
+                startButton.classList.add('opacity-50', 'cursor-not-allowed');
+                startButton.style.boxShadow = 'none'; 
+                stopButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                stopButton.classList.add('hover:bg-gray-700'); 
+            } else {
+                startButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                stopButton.classList.add('opacity-50', 'cursor-not-allowed');
+                stopButton.classList.remove('hover:bg-gray-700'); 
+                stopButton.style.boxShadow = 'none'; 
+            }
+        }
+
+        function updateTimerDisplay() {
+            timerDisplay.textContent = formatTime(totalSeconds);
+            // Highlight display when low on time
+            if (totalSeconds > 0 && totalSeconds <= 60) {
+                timerDisplay.classList.add('text-red-400');
+            } else {
+                timerDisplay.classList.remove('text-red-400');
+            }
+        }
+        
+        // Handles input when the Enter key is pressed
+        function handleTimeInput(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Stop default form submission
+                setCustomTime();
+            }
+        }
+
+        function setCustomTime() {
+            const input = document.getElementById('custom-time-input');
+            const minutes = parseInt(input.value, 10);
+            
+            if (isNaN(minutes) || minutes <= 0) {
+                input.value = '';
+                return; // Silent return if input is invalid
+            }
+
+            totalSeconds = minutes * 60;
+            updateTimerDisplay();
+            input.value = ''; 
+            stopTimer(); // Ensure timer is paused when time is set
+        }
+
+        function startTimer() {
+            if (isRunning) return; 
+            if (totalSeconds <= 0) return; // Silent return if time is 0
+            
+            isRunning = true;
+            toggleTimerButtons(true);
+
+            intervalId = setInterval(() => {
+                totalSeconds--;
+                updateTimerDisplay();
+
+                if (totalSeconds <= 0) {
+                    clearInterval(intervalId);
+                    isRunning = false;
+                    toggleTimerButtons(false);
+                    // Use a subtle pulse/glow to signify completion
+                    timerDisplay.classList.add('text-green-300', 'animate-pulse');
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (!isRunning) return;
+            clearInterval(intervalId);
+            isRunning = false;
+            toggleTimerButtons(false);
+        }
+
+        function resetTimer() {
+            stopTimer();
+            totalSeconds = 0;
+            updateTimerDisplay();
+            timerDisplay.classList.remove('text-green-300', 'animate-pulse');
+        }
+
+        // --- STOPWATCH LOGIC ---
+
+        function toggleStopwatchButtons(running) {
+            stopwatchStartButton.disabled = running;
+            stopwatchStopButton.disabled = !running;
+
+            // Apply visual disabled states
+            if (running) {
+                stopwatchStartButton.classList.add('opacity-50', 'cursor-not-allowed');
+                stopwatchStartButton.style.boxShadow = 'none'; 
+                stopwatchStopButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                stopwatchStopButton.classList.add('hover:bg-gray-700'); 
+            } else {
+                stopwatchStartButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                stopwatchStopButton.classList.add('opacity-50', 'cursor-not-allowed');
+                stopwatchStopButton.classList.remove('hover:bg-gray-700'); 
+                stopwatchStopButton.style.boxShadow = 'none'; 
+            }
+        }
+
+        function updateStopwatchDisplay() {
+            stopwatchDisplay.textContent = formatTime(stopwatchSeconds);
+        }
+
+        function startStopwatch() {
+            if (isStopwatchRunning) return;
+            
+            isStopwatchRunning = true;
+            toggleStopwatchButtons(true);
+
+            stopwatchIntervalId = setInterval(() => {
+                stopwatchSeconds++;
+                updateStopwatchDisplay();
+            }, 1000);
+        }
+
+        function stopStopwatch() {
+            if (!isStopwatchRunning) return;
+            clearInterval(stopwatchIntervalId);
+            isStopwatchRunning = false;
+            toggleStopwatchButtons(false);
+        }
+
+        function resetStopwatch() {
+            stopStopwatch();
+            stopwatchSeconds = 0;
+            updateStopwatchDisplay();
+        }
+
+
+        // Initialize displays on load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateCounterDisplay();
+            updateTimerDisplay();
+            updateStopwatchDisplay();
+            
+            // Ensure initial disabled states are correct
+            toggleTimerButtons(false);
+            toggleStopwatchButtons(false);
+            
+            // Start on the counter tool and set initial view state
+            switchTool('counter'); 
+            updateView();
+        });
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Dashboard</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600&display=swap" rel="stylesheet">
+    <style>
+        /* General dark theme and Inter font */
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #000000;
+        }
+        
+        /* Utility class to hide elements completely */
+        .cinematic-hidden {
+            display: none !important;
+        }
+
+        /* Ensure the main container fills the viewport height, adjusted dynamically by JS */
+        #app-container { min-height: calc(100vh - 3.5rem); }
+
+        /* General panel styling: Full screen layout, centered content */
+        .panel {
+            min-height: 100vh;
+            width: 100vw;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 2rem 4rem 2rem; 
+            background-color: #0a0a0a;
+            justify-content: center;
+            position: absolute;
+            top: 0;
+            left: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Active panel state */
+        .panel.active {
+            display: flex;
+        }
+
+        /* Specific styling for the large display numbers (lighter font weight) */
+        .large-display {
+            font-size: 7rem; 
+            line-height: 1;
+            font-weight: 200;
+        }
+
+        /* Adjust font size for tablet/desktop to ensure no leaking and sleekness */
+        @media (min-width: 768px) {
+            .large-display {
+                font-size: 10rem;
+            }
+        }
+
+        /* Custom style for all primary buttons (Dark Gray Background, NO rounding) */
+        .action-button {
+            background-color: #1f2937;
+            color: white; 
+            transition: all 150ms;
+            border: 1px solid #1f2937;
+        }
+
+        /* --- CINEMATIC TOGGLE STYLES (STATIC/SUBTLE) --- */
+        #cinematic-toggle {
+            background-color: transparent;
+            color: white; 
+            border: none;
+            box-shadow: none;
+            transition: none;
+            padding: 0.75rem; 
+            line-height: 0;
+        }
+        
+        #cinematic-toggle:hover, 
+        #cinematic-toggle.cinematic-active {
+            background-color: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        /* Cinematic Counter Circle Button Styling */
+        .cinematic-circle-button {
+            width: 100%;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #1f2937;
+            border: 2px solid #1f2937;
+            transition: all 150ms;
+            border-radius: 9999px;
+        }
+        
+        /* Fixed Nav Bar Styling (Small, centered, and highly subtle) */
+        #navbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3.5rem;
+            background-color: #000; /* Keeps it pitch black */
+            display: flex;
+            justify-content: center; /* Center the icons horizontally */
+            align-items: center;
+            padding: 0 1rem;
+            transition: opacity 0.3s ease;
+        }
+
+        .nav-button {
+            flex: 1;
+            max-width: 100px;
+            height: 2.5rem;
+            font-size: 1.5rem; /* Larger icon size */
+            background-color: transparent; /* Subtle */
+            border: none; /* Subtle */
+            border-radius: 0.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #6b7280; /* Default subtle gray icon color */
+            transition: all 150ms;
+        }
+        
+        /* Nav button active state: subtle green icon, no background/shadow */
+        .nav-button.active-tool {
+            box-shadow: none;
+            background-color: transparent;
+            color: #4ade80; /* Bright green for active icon */
+        }
+        
+        /* Nav button hover state: subtle background change and white icon */
+        .nav-button:hover:not(.active-tool) {
+            background-color: #1f2937;
+            color: white;
+        }
+
+
+        /* Hover/Active Styles for Utility Buttons (Glow effects remain) */
+        /* Start/Add Glow - Green */
+        #start-button:hover:not(:disabled), .counter-plus:hover, 
+        .cinematic-circle-button.counter-plus:hover, 
+        #stopwatch-start-button:hover:not(:disabled) { 
+            box-shadow: 0 0 8px rgba(74, 222, 128, 0.4); 
+            border-color: #4ade80; 
+        }
+        /* Stop Glow - Yellow */
+        #stop-button:hover:not(:disabled), 
+        #stopwatch-stop-button:hover:not(:disabled) { 
+            box-shadow: 0 0 8px rgba(253, 224, 71, 0.4); 
+            border-color: #fde047;
+        }
+        
+        /* Reset/Minus Glow - Red */
+        #reset-timer-button:hover, .counter-control:hover, .counter-minus:hover, 
+        .cinematic-circle-button.counter-minus:hover, 
+        #stopwatch-reset-button:hover { 
+             box-shadow: 0 0 8px rgba(248, 113, 113, 0.4); 
+             border-color: #f87171;
+        }
+        /* Reset initial shadows on cinematic buttons */
+        .cinematic-circle-button.counter-plus, .cinematic-circle-button.counter-minus {
+            box-shadow: none; 
+        }
+
+        /* Timer Input specific style */
+        #custom-time-input {
+            text-align: center;
+        }
+        
+    </style>
+</head>
+<body class="bg-black text-white antialiased">
+
+    <!-- FIXED TOP-LEFT CINEMATIC TOGGLE -->
+    <button id="cinematic-toggle" onclick="toggleCinematicMode()" class="fixed top-4 left-4 p-3 text-xl z-50">
+        <!-- Simple Monitor Icon -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="15" x="2" y="3" rx="2"/><path d="M7 21h10"/><path d="M12 18v3"/></svg>
+    </button>
+
+    <!-- App Container: Hosts the toggleable panels -->
+    <div id="app-container">
+
+        <!-- 1. COUNTER PANEL -->
+        <div id="counter-panel" class="panel active">
+            <!-- Main Counter Number -->
+            <div id="counter-display" class="large-display tabular-nums text-white transition-colors duration-300">0</div>
+            
+            <!-- Standard Counter Controls -->
+            <div id="standard-counter-controls" class="flex space-x-6 w-full max-w-sm px-4 counter-controls mt-16">
+                <button onclick="changeCount(-1)" class="w-1/3 p-4 text-3xl action-button transform hover:scale-[1.03] active:scale-95 counter-minus">-</button>
+                <button onclick="resetCount()" class="w-1/3 p-4 text-xl font-medium action-button transform hover:scale-[1.03] active:scale-95 counter-control">Reset</button>
+                <button onclick="changeCount(1)" class="w-1/3 p-4 text-3xl action-button transform hover:scale-[1.03] active:scale-95 counter-plus">+</button>
+            </div>
+            
+            <!-- Cinematic Counter Controls (Circle Buttons) -->
+            <div id="cinematic-counter-controls" class="hidden flex flex-col space-y-8 w-full max-w-xs px-4 cinematic-controls mt-16">
+                <button onclick="changeCount(1)" class="cinematic-circle-button counter-plus transform hover:scale-[1.03] active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+                <button onclick="changeCount(-1)" class="cinematic-circle-button counter-minus transform hover:scale-[1.03] active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. TIMER PANEL -->
+        <div id="timer-panel" class="panel">
+            
+            <!-- Timer Display -->
+            <div id="timer-display" class="large-display tabular-nums text-white transition-colors duration-500">00:00:00</div>
+
+            <!-- Standard Timer Controls (Bottom Section) -->
+            <div id="standard-timer-controls" class="w-full max-w-sm mt-16 space-y-4 px-4 pb-0">
+                <!-- Custom Time Input: Enter key updates time -->
+                <div class="flex">
+                    <input type="number" id="custom-time-input" onkeydown="handleTimeInput(event)" placeholder="Enter time in minutes" min="1" class="w-full p-3 bg-gray-800 text-white focus:ring-1 focus:ring-gray-600 focus:outline-none border border-gray-800">
+                </div>
+
+                <!-- Main Action Buttons -->
+                <div class="flex space-x-3">
+                    <button id="start-button" onclick="startTimer()" class="flex-1 p-4 text-xl font-semibold action-button active:scale-95">Start</button>
+                    <button id="stop-button" onclick="stopTimer()" disabled class="flex-1 p-4 text-xl font-semibold action-button opacity-50 cursor-not-allowed">Stop</button>
+                    <button id="reset-timer-button" onclick="resetTimer()" class="p-4 text-xl font-semibold action-button active:scale-95">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. STOPWATCH PANEL -->
+        <div id="stopwatch-panel" class="panel">
+            
+            <!-- Stopwatch Display -->
+            <div id="stopwatch-display" class="large-display tabular-nums text-white transition-colors duration-500">00:00:00</div>
+
+            <!-- Stopwatch Controls -->
+            <div id="stopwatch-controls" class="w-full max-w-sm mt-16 space-y-4 px-4 pb-0">
+                <!-- Main Action Buttons -->
+                <div class="flex space-x-3">
+                    <button id="stopwatch-start-button" onclick="startStopwatch()" class="flex-1 p-4 text-xl font-semibold action-button active:scale-95">Start</button>
+                    <button id="stopwatch-stop-button" onclick="stopStopwatch()" disabled class="flex-1 p-4 text-xl font-semibold action-button opacity-50 cursor-not-allowed">Stop</button>
+                    <button id="stopwatch-reset-button" onclick="resetStopwatch()" class="p-4 text-xl font-semibold action-button active:scale-95">Reset</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- FIXED BOTTOM NAVIGATION BAR (Small, subtle icons) -->
+    <div id="navbar">
+        <div class="flex space-x-4 w-full max-w-xs"> <!-- Reduced max-width to cluster icons -->
+            <button id="nav-counter" onclick="switchTool('counter')" class="nav-button active-tool">
+                <!-- 123 Icon (Counting) -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 0 1-8-8 8 8 0 0 1 8-8 8 8 0 0 1 8 8 8 8 0 0 1-8 8"/><path d="M12 10V8"/><path d="M12 16v-2"/><path d="M10 12h4"/></svg>
+            </button>
+            <button id="nav-timer" onclick="switchTool('timer')" class="nav-button">
+                <!-- Timer Icon (Clock/Hourglass) -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v1H5V2z"/><path d="M5 4v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4H5z"/><path d="M8 9.5l3 3 4-4"/></svg>
+            </button>
+            <button id="nav-stopwatch" onclick="switchTool('stopwatch')" class="nav-button">
+                <!-- Stopwatch Icon -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/><path d="M18.36 5.64l-1.42 1.42"/></svg>
+            </button>
+        </div>
+    </div>
+
+
+    <script>
+        // --- GLOBAL STATE ---
+        let currentTool = 'counter';
+        let isCinematicMode = false;
+        
+        // --- TIMER STATE ---
+        let totalSeconds = 0;
+        let isRunning = false;
+        let intervalId = null;
+
+        // --- STOPWATCH STATE ---
+        let stopwatchSeconds = 0;
+        let isStopwatchRunning = false;
+        let stopwatchIntervalId = null;
+        
+        // --- DOM REFERENCES ---
+        const appContainer = document.getElementById('app-container');
+        const navbar = document.getElementById('navbar');
+        const counterPanel = document.getElementById('counter-panel');
+        const timerPanel = document.getElementById('timer-panel');
+        const stopwatchPanel = document.getElementById('stopwatch-panel');
+        const standardCounterControls = document.getElementById('standard-counter-controls');
+        const cinematicCounterControls = document.getElementById('cinematic-counter-controls');
+        const standardTimerControls = document.getElementById('standard-timer-controls');
+        const stopwatchControls = document.getElementById('stopwatch-controls');
+
+        const navCounter = document.getElementById('nav-counter');
+        const navTimer = document.getElementById('nav-timer');
+        const navStopwatch = document.getElementById('nav-stopwatch');
+        
+        // Timer Refs
+        const timerDisplay = document.getElementById('timer-display');
+        const startButton = document.getElementById('start-button');
+        const stopButton = document.getElementById('stop-button');
+
+        // Stopwatch Refs
+        const stopwatchDisplay = document.getElementById('stopwatch-display');
+        const stopwatchStartButton = document.getElementById('stopwatch-start-button');
+        const stopwatchStopButton = document.getElementById('stopwatch-stop-button');
+
+
+        // --- VIEW MANAGEMENT ---
+
+        function updateView() {
+            // 1. Manage Navigation Bar and App Container Height
+            if (isCinematicMode) {
+                navbar.classList.add('cinematic-hidden');
+                appContainer.style.minHeight = '100vh';
+                appContainer.style.paddingBottom = '0';
+            } else {
+                navbar.classList.remove('cinematic-hidden');
+                // Height adjustment uses 3.5rem (navbar height)
+                appContainer.style.minHeight = 'calc(100vh - 3.5rem)';
+                appContainer.style.paddingBottom = '3.5rem'; 
+            }
+
+            // 2. Hide all panels and controls initially
+            counterPanel.classList.remove('active');
+            timerPanel.classList.remove('active');
+            stopwatchPanel.classList.remove('active');
+
+            standardCounterControls.classList.add('cinematic-hidden');
+            cinematicCounterControls.classList.add('hidden');
+            standardTimerControls.classList.add('cinematic-hidden');
+            stopwatchControls.classList.add('cinematic-hidden');
+
+
+            // 3. Activate the current tool and show necessary controls
+            if (currentTool === 'counter') {
+                counterPanel.classList.add('active');
+                if (isCinematicMode) {
+                    cinematicCounterControls.classList.remove('hidden');
+                } else {
+                    standardCounterControls.classList.remove('cinematic-hidden');
+                }
+            } else if (currentTool === 'timer') {
+                timerPanel.classList.add('active');
+                if (!isCinematicMode) {
+                    standardTimerControls.classList.remove('cinematic-hidden');
+                }
+            } else if (currentTool === 'stopwatch') { 
+                stopwatchPanel.classList.add('active');
+                if (!isCinematicMode) {
+                    stopwatchControls.classList.remove('cinematic-hidden');
+                }
+            }
+        }
+
+        function toggleCinematicMode() {
+            isCinematicMode = !isCinematicMode;
+            updateView();
+        }
+
+        function switchTool(tool) {
+            if (currentTool === tool) return;
+
+            // Stop any running operations before switching
+            if (currentTool === 'timer' && isRunning) stopTimer();
+            if (currentTool === 'stopwatch' && isStopwatchRunning) stopStopwatch();
+
+            currentTool = tool;
+
+            // Update navigation button active state
+            navCounter.classList.remove('active-tool');
+            navTimer.classList.remove('active-tool');
+            navStopwatch.classList.remove('active-tool');
+            
+            if (tool === 'counter') {
+                navCounter.classList.add('active-tool');
+            } else if (tool === 'timer') {
+                navTimer.classList.add('active-tool');
+            } else if (tool === 'stopwatch') {
+                navStopwatch.classList.add('active-tool');
+            }
+
+            // Update the panel visibility and control setup
+            updateView();
+        }
+
+        // --- UTILITIES ---
+        
+        function formatTime(seconds) {
+            if (seconds < 0) seconds = 0;
+            const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+            const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+
+
+        // --- COUNTER LOGIC ---
+        let currentCount = 0;
+        const counterDisplay = document.getElementById('counter-display');
+
+        function updateCounterDisplay() {
+            counterDisplay.textContent = currentCount;
+            // Use red only for negative numbers for minimal distraction
+            if (currentCount < 0) {
+                counterDisplay.classList.add('text-red-400');
+            } else {
+                counterDisplay.classList.remove('text-red-400');
+            }
+        }
+
+        function changeCount(delta) {
+            currentCount += delta;
+            updateCounterDisplay();
+        }
+
+        function resetCount() {
+            currentCount = 0;
+            updateCounterDisplay();
+        }
+
+        // --- TIMER LOGIC (Countdown) ---
+        function toggleTimerButtons(running) {
+            startButton.disabled = running;
+            stopButton.disabled = !running;
+
+            // Handle opacity for disabled state
+            if (running) {
+                startButton.classList.add('opacity-50', 'cursor-not-allowed');
+                startButton.style.boxShadow = 'none'; 
+                stopButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                stopButton.classList.add('hover:bg-gray-700'); 
+            } else {
+                startButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                stopButton.classList.add('opacity-50', 'cursor-not-allowed');
+                stopButton.classList.remove('hover:bg-gray-700'); 
+                stopButton.style.boxShadow = 'none'; 
+            }
+        }
+
+        function updateTimerDisplay() {
+            timerDisplay.textContent = formatTime(totalSeconds);
+            // Highlight display when low on time
+            if (totalSeconds > 0 && totalSeconds <= 60) {
+                timerDisplay.classList.add('text-red-400');
+            } else {
+                timerDisplay.classList.remove('text-red-400');
+            }
+        }
+        
+        // Handles input when the Enter key is pressed
+        function handleTimeInput(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Stop default form submission
+                setCustomTime();
+            }
+        }
+
+        function setCustomTime() {
+            const input = document.getElementById('custom-time-input');
+            const minutes = parseInt(input.value, 10);
+            
+            if (isNaN(minutes) || minutes <= 0) {
+                input.value = '';
+                return; // Silent return if input is invalid
+            }
+
+            totalSeconds = minutes * 60;
+            updateTimerDisplay();
+            input.value = ''; 
+            stopTimer(); // Ensure timer is paused when time is set
+        }
+
+        function startTimer() {
+            if (isRunning) return; 
+            if (totalSeconds <= 0) return; // Silent return if time is 0
+            
+            isRunning = true;
+            toggleTimerButtons(true);
+
+            intervalId = setInterval(() => {
+                totalSeconds--;
+                updateTimerDisplay();
+
+                if (totalSeconds <= 0) {
+                    clearInterval(intervalId);
+                    isRunning = false;
+                    toggleTimerButtons(false);
+                    // Use a subtle pulse/glow to signify completion
+                    timerDisplay.classList.add('text-green-300', 'animate-pulse');
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (!isRunning) return;
+            clearInterval(intervalId);
+            isRunning = false;
+            toggleTimerButtons(false);
+        }
+
+        function resetTimer() {
+            stopTimer();
+            totalSeconds = 0;
+            updateTimerDisplay();
+            timerDisplay.classList.remove('text-green-300', 'animate-pulse');
+        }
+
+        // --- STOPWATCH LOGIC ---
+
+        function toggleStopwatchButtons(running) {
+            stopwatchStartButton.disabled = running;
+            stopwatchStopButton.disabled = !running;
+
+            // Apply visual disabled states
+            if (running) {
+                stopwatchStartButton.classList.add('opacity-50', 'cursor-not-allowed');
+                stopwatchStartButton.style.boxShadow = 'none'; 
+                stopwatchStopButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                stopwatchStopButton.classList.add('hover:bg-gray-700'); 
+            } else {
+                stopwatchStartButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                stopwatchStopButton.classList.add('opacity-50', 'cursor-not-allowed');
+                stopwatchStopButton.classList.remove('hover:bg-gray-700'); 
+                stopwatchStopButton.style.boxShadow = 'none'; 
+            }
+        }
+
+        function updateStopwatchDisplay() {
+            stopwatchDisplay.textContent = formatTime(stopwatchSeconds);
+        }
+
+        function startStopwatch() {
+            if (isStopwatchRunning) return;
+            
+            isStopwatchRunning = true;
+            toggleStopwatchButtons(true);
+
+            stopwatchIntervalId = setInterval(() => {
+                stopwatchSeconds++;
+                updateStopwatchDisplay();
+            }, 1000);
+        }
+
+        function stopStopwatch() {
+            if (!isStopwatchRunning) return;
+            clearInterval(stopwatchIntervalId);
+            isStopwatchRunning = false;
+            toggleStopwatchButtons(false);
+        }
+
+        function resetStopwatch() {
+            stopStopwatch();
+            stopwatchSeconds = 0;
+            updateStopwatchDisplay();
+        }
+
+
+        // Initialize displays on load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateCounterDisplay();
+            updateTimerDisplay();
+            updateStopwatchDisplay();
+            
+            // Ensure initial disabled states are correct
+            toggleTimerButtons(false);
+            toggleStopwatchButtons(false);
+            
+            // Start on the counter tool and set initial view state
+            switchTool('counter'); 
+            updateView();
+        });
+    </script>
+</body>
+</html>
